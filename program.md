@@ -11,8 +11,8 @@ packing many small polyominoes into a small rectangle.
    - `README.md`
    - `prepare.py` (fixed harness, do not modify)
    - `train.py` (the only file you modify)
-4. Run the baseline once: `uv run train.py > run.log 2>&1`
-5. Initialize `results.tsv` with the header row.
+4. Run the baseline once: `bash run_autoresearch.sh`
+5. Initialize `results.tsv` with the header row if needed.
 6. Record the baseline.
 
 ## What you CAN do

@@ -58,7 +58,18 @@ Tie-break intuition:
 uv sync
 uv run prepare.py
 uv run train.py
+bash run_autoresearch.sh
 ```
+
+## Inspecting the setup
+
+The repo now includes:
+
+- `program.md` — the Karpathy-style research loop
+- `AGENTS.md` — repo-specific working rules
+- `results.tsv` — baseline experiment ledger on the research branch
+- `run_autoresearch.sh` — helper to execute and log runs
+- `use_official_frontier_stack.md` — notes for switching to the real Frontier-CS Docker judge
 
 ## Baseline
 
