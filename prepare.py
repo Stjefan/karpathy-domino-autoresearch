@@ -1,139 +1,154 @@
 """
-Fixed benchmark harness for domino-packing autoresearch experiments.
-Do not modify this file during the research loop.
-
-Usage:
-    uv run prepare.py
+Fixed local harness for Frontier-CS Algorithmic Problem 0 style polyomino packing.
+Do not modify during autoresearch.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import json
 import time
-from dataclasses import dataclass
 
-Board = tuple[int, int, frozenset[tuple[int, int]]]
-TIME_BUDGET = 5.0
+Cell = tuple[int, int]
+Piece = tuple[Cell, ...]
+Placement = tuple[int, int, int, int]  # X, Y, R, F
 
 
 @dataclass(frozen=True)
-class BenchmarkCase:
+class Case:
     name: str
-    width: int
-    height: int
-    blocked: frozenset[tuple[int, int]]
-
-    def board_tuple(self) -> Board:
-        return (self.width, self.height, self.blocked)
+    pieces: tuple[Piece, ...]
 
 
-def _checker_holes(width: int, height: int) -> frozenset[tuple[int, int]]:
-    return frozenset(
-        (x, y)
-        for y in range(height)
-        for x in range(width)
-        if x % 4 == 1 and y % 4 == 1
-    )
+def normalize(piece: list[Cell] | tuple[Cell, ...]) -> Piece:
+    min_x = min(x for x, _ in piece)
+    min_y = min(y for _, y in piece)
+    return tuple(sorted((x - min_x, y - min_y) for x, y in piece))
 
 
-def benchmark_suite() -> list[BenchmarkCase]:
+def transform_cell(cell: Cell, r: int, f: int) -> Cell:
+    x, y = cell
+    if f:
+        x = -x
+    r %= 4
+    if r == 0:
+        return x, y
+    if r == 1:
+        return y, -x
+    if r == 2:
+        return -x, -y
+    return -y, x
+
+
+def transform_piece(piece: Piece, r: int, f: int) -> Piece:
+    return normalize([transform_cell(c, r, f) for c in piece])
+
+
+def unique_transforms(piece: Piece) -> list[tuple[Piece, int, int]]:
+    seen = set()
+    out = []
+    for f in (0, 1):
+        for r in range(4):
+            p = transform_piece(piece, r, f)
+            if p not in seen:
+                seen.add(p)
+                out.append((p, r, f))
+    return out
+
+
+def piece_area(piece: Piece) -> int:
+    return len(piece)
+
+
+def bounding_box(piece: Piece) -> tuple[int, int]:
+    w = max(x for x, _ in piece) + 1
+    h = max(y for _, y in piece) + 1
+    return w, h
+
+
+def cases() -> list[Case]:
+    mono = ((0, 0),)
+    domino = ((0, 0), (1, 0))
+    tri_i = ((0, 0), (1, 0), (2, 0))
+    tri_l = ((0, 0), (0, 1), (1, 0))
+    tet_o = ((0, 0), (1, 0), (0, 1), (1, 1))
+    tet_i = ((0, 0), (1, 0), (2, 0), (3, 0))
+    tet_t = ((0, 0), (1, 0), (2, 0), (1, 1))
+    tet_l = ((0, 0), (0, 1), (0, 2), (1, 0))
+    tet_s = ((0, 0), (1, 0), (1, 1), (2, 1))
+    pent_p = ((0, 0), (1, 0), (0, 1), (1, 1), (0, 2))
+    pent_u = ((0, 0), (0, 1), (1, 1), (2, 1), (2, 0))
+    pent_f = ((1, 0), (0, 1), (1, 1), (1, 2), (2, 2))
+
+    library = [mono, domino, tri_i, tri_l, tet_o, tet_i, tet_t, tet_l, tet_s, pent_p, pent_u, pent_f]
     return [
-        BenchmarkCase("empty_4x4", 4, 4, frozenset()),
-        BenchmarkCase("empty_6x6", 6, 6, frozenset()),
-        BenchmarkCase("empty_8x8", 8, 8, frozenset()),
-        BenchmarkCase("odd_9x9", 9, 9, frozenset()),
-        BenchmarkCase("holes_8x8", 8, 8, _checker_holes(8, 8)),
-        BenchmarkCase("holes_12x12", 12, 12, _checker_holes(12, 12)),
-        BenchmarkCase("sparse_10x10", 10, 10, frozenset({(1,1),(2,7),(4,4),(5,8),(7,2),(8,8)})),
-        BenchmarkCase("frame_12x10", 12, 10, frozenset({(0,5),(11,5),(5,0),(5,9)})),
-        BenchmarkCase("cross_11x11", 11, 11, frozenset({(5,y) for y in range(11) if y != 5} | {(x,5) for x in range(11) if x != 5})),
-        BenchmarkCase("banded_14x8", 14, 8, frozenset({(x,y) for y in range(8) for x in range(14) if (x+y) % 7 == 0})),
-        BenchmarkCase("randomish_12x12", 12, 12, frozenset({(0,0),(1,4),(2,8),(3,3),(4,10),(5,6),(6,1),(7,9),(8,5),(9,11),(10,2),(11,7)})),
-        BenchmarkCase("large_16x12", 16, 12, frozenset({(2,2),(3,7),(5,5),(6,9),(8,4),(10,10),(12,3),(13,8)})),
+        Case("tiny_mix", tuple(library[:8] * 2)),
+        Case("medium_mix", tuple(library * 3)),
+        Case("tetra_heavy", tuple([tet_o, tet_i, tet_t, tet_l, tet_s] * 8)),
+        Case("penta_mix", tuple([pent_p, pent_u, pent_f, tet_t, tri_l, domino] * 8)),
+        Case("large_mix", tuple(library * 8)),
     ]
 
 
-def exact_optimum(case: BenchmarkCase) -> int:
-    import networkx as nx
-
-    free = [
-        (x, y)
-        for y in range(case.height)
-        for x in range(case.width)
-        if (x, y) not in case.blocked
-    ]
-    left = [c for c in free if (c[0] + c[1]) % 2 == 0]
-    graph = nx.Graph()
-    graph.add_nodes_from(left, bipartite=0)
-    graph.add_nodes_from([c for c in free if c not in left], bipartite=1)
-    for x, y in left:
-        for dx, dy in ((1,0),(-1,0),(0,1),(0,-1)):
-            nxt = (x + dx, y + dy)
-            if nxt in case.blocked:
-                continue
-            if 0 <= nxt[0] < case.width and 0 <= nxt[1] < case.height and (nxt[0] + nxt[1]) % 2 == 1:
-                graph.add_edge((x, y), nxt)
-    matching = nx.algorithms.bipartite.matching.maximum_matching(graph, top_nodes=set(left))
-    return sum(1 for c in left if c in matching)
+def apply_placement(piece: Piece, placement: Placement) -> list[Cell]:
+    x0, y0, r, f = placement
+    transformed = transform_piece(piece, r, f)
+    return [(x + x0, y + y0) for x, y in transformed]
 
 
 def evaluate_solver(solver) -> dict:
-    suite = benchmark_suite()
     started = time.perf_counter()
-    results = []
-    total_score = 0
-    solved_optimal = 0
+    total_score = 0.0
+    valid_cases = 0
+    case_results = []
 
-    for case in suite:
-        packing = solver(case.width, case.height, case.blocked)
-        used = set()
-        valid = True
-        for a, b in packing:
-            if a in used or b in used:
-                valid = False
-                break
-            ax, ay = a
-            bx, by = b
-            if abs(ax - bx) + abs(ay - by) != 1:
-                valid = False
-                break
-            for cell in (a, b):
-                x, y = cell
-                if not (0 <= x < case.width and 0 <= y < case.height):
-                    valid = False
+    for case in cases():
+        W, H, placements = solver(case.pieces)
+        ok = True
+        if not isinstance(W, int) or not isinstance(H, int) or W <= 0 or H <= 0:
+            ok = False
+        if len(placements) != len(case.pieces):
+            ok = False
+
+        occupied: set[Cell] = set()
+        total_cells = sum(len(p) for p in case.pieces)
+        if ok:
+            for piece, placement in zip(case.pieces, placements):
+                cells = apply_placement(piece, placement)
+                for x, y in cells:
+                    if not (0 <= x < W and 0 <= y < H):
+                        ok = False
+                        break
+                    if (x, y) in occupied:
+                        ok = False
+                        break
+                    occupied.add((x, y))
+                if not ok:
                     break
-                if cell in case.blocked:
-                    valid = False
-                    break
-            used.add(a)
-            used.add(b)
-        covered = len(used)
-        optimum = exact_optimum(case) * 2
-        if valid:
-            total_score += covered
-            if covered == optimum:
-                solved_optimal += 1
-        results.append({
+
+        area = W * H if isinstance(W, int) and isinstance(H, int) and W > 0 and H > 0 else 10**18
+        score = (1e5 * total_cells / area) if ok else 0.0
+        total_score += score
+        if ok:
+            valid_cases += 1
+        case_results.append({
             "name": case.name,
-            "covered": covered if valid else 0,
-            "optimum": optimum,
-            "valid": valid,
+            "score": score,
+            "area": area,
+            "valid": ok,
+            "n_pieces": len(case.pieces),
+            "total_cells": total_cells,
         })
 
     runtime = time.perf_counter() - started
     return {
         "score": total_score,
-        "solved_optimal": f"{solved_optimal}/{len(suite)}",
+        "valid_cases": f"{valid_cases}/{len(cases())}",
         "runtime_seconds": runtime,
-        "budget_seconds": TIME_BUDGET,
-        "status": "success" if runtime <= TIME_BUDGET else "timeout",
-        "cases": results,
+        "status": "success",
+        "cases": case_results,
     }
 
 
 if __name__ == "__main__":
-    payload = {
-        "benchmark_cases": [case.name for case in benchmark_suite()],
-        "time_budget_seconds": TIME_BUDGET,
-    }
-    print(json.dumps(payload, indent=2))
+    print(json.dumps({"cases": [c.name for c in cases()]}, indent=2))

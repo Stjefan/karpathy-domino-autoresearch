@@ -1,50 +1,56 @@
-# autoresearch-domino-karpathy
+# karpathy-domino-autoresearch
 
-An **algorithmic adaptation** of the ideas in [karpathy/autoresearch](https://github.com/karpathy/autoresearch), aimed at a combinatorial search problem: **finding strong domino packings on finite grids**.
+A **Karpathy-style autoresearch adaptation** for **Frontier-CS Algorithmic Problem 0**.
 
-The spirit is the same as the upstream repo:
+The exact problem is **not domino matching**. It is:
 
-- keep the repo very small
-- keep a fixed harness
-- let the agent edit **one file**
-- run short experiments
-- keep or discard based on measurable improvement
+> Pack many small polyominoes into an axis-aligned rectangle, allowing translation, rotation, and reflection, while minimizing the rectangle area.
 
-But instead of optimizing `val_bpb` for a language model, this repo optimizes a domino-packing score over a benchmark suite.
+This repo keeps the spirit of `karpathy/autoresearch`:
 
-## Upstream inspiration
+- tiny repo
+- fixed harness in `prepare.py`
+- one editable file: `train.py`
+- a `program.md` that defines the autonomous improvement loop
 
-This repo is **inspired by and structurally adapted from** Karpathy's `autoresearch` pattern.
-It is not the original training setup and it does not train neural networks.
+## Problem summary
 
-## Problem
+Input: many polyominoes, each with 1–10 cells.
 
-We study domino packing on rectangular boards with optional blocked cells.
-A domino covers exactly two orthogonally adjacent free cells.
-The goal is to maximize the number of covered cells.
+Output:
+- rectangle width `W` and height `H`
+- one transform per polyomino:
+  - translation `(X, Y)`
+  - rotation `R ∈ {0,1,2,3}`
+  - reflection flag `F ∈ {0,1}`
+
+Goal:
+- minimize rectangle area `A = W * H`
+- ties prefer smaller `H`, then smaller `W`
+
+## This repo's purpose
+
+This is a **research scaffold**, not an exact clone of the official Frontier-CS evaluation stack.
+It is designed to let an agent iterate on packing strategies in the Karpathy keep/discard style.
 
 ## Repo structure
 
 Only three files matter:
 
-- **`prepare.py`** — fixed benchmark definitions, scoring, and evaluation harness. Do not modify.
-- **`train.py`** — the only file the agent edits. Contains the candidate solver/search strategy.
-- **`program.md`** — instructions for the autonomous research loop.
+- `prepare.py` — fixed benchmark cases, transforms, validation, scoring
+- `train.py` — the only file to mutate during autoresearch
+- `program.md` — instructions for autonomous experimentation
 
 ## Metric
 
-Each experiment is scored on a fixed benchmark suite under a fixed wall-clock budget.
-The harness reports:
+For the local harness, higher is better:
 
-- `score` — total covered cells across benchmark boards, higher is better
-- `solved_optimal` — how many instances matched the exact optimum
-- `runtime_seconds` — total runtime
+- `score = 1e5 * total_cells / total_area_sum`
 
-The primary objective is:
-
-1. maximize `score`
-2. then maximize `solved_optimal`
-3. then minimize `runtime_seconds`
+Tie-break intuition:
+- smaller total area is better
+- more valid packings is better
+- lower runtime is better
 
 ## Quick start
 
@@ -54,23 +60,22 @@ uv run prepare.py
 uv run train.py
 ```
 
-## Running the agent
+## Baseline
 
-Point your coding agent at `program.md` and let it operate in the same keep/discard loop style as the original repo.
+The current baseline is intentionally simple:
 
-## Design philosophy
+- enumerate unique transforms for each piece
+- choose a compact orientation greedily
+- place pieces using a shelf-style rectangle packing heuristic
 
-- one small repo
-- one file to mutate
-- one fixed evaluation harness
-- one simple measurable objective
+That is a **valid starting point**, not a strong solver.
 
-That makes it a decent fit for agentic algorithm research.
+## Good next research directions
 
-## Future directions
-
-- richer domino-packing instance families
-- local search and branch-and-bound hybrids
-- SAT / ILP backends
-- pattern databases
-- decomposition and symmetry handling
+- better ordering of pieces
+- skyline / guillotine style placement
+- local improvement after initial placement
+- width search and restart strategies
+- component-specific rules by polyomino shape family
+- lower bounds for pruning
+- hybrid exact search on small subinstances

@@ -1,67 +1,66 @@
 """
-Editable solver file for autoresearch-domino-karpathy.
+Editable solver file for Karpathy-style polyomino packing autoresearch.
 Usage: uv run train.py
 """
 
 from __future__ import annotations
 
-from collections import deque
+import math
 
-from prepare import evaluate_solver
-
-Cell = tuple[int, int]
-Domino = tuple[Cell, Cell]
+from prepare import Piece, Placement, bounding_box, evaluate_solver, unique_transforms
 
 
-def _neighbors(width: int, height: int, blocked: frozenset[Cell], cell: Cell) -> list[Cell]:
-    x, y = cell
-    out = []
-    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-        nxt = (x + dx, y + dy)
-        if 0 <= nxt[0] < width and 0 <= nxt[1] < height and nxt not in blocked:
-            out.append(nxt)
-    return out
+def best_orientation(piece: Piece) -> tuple[Piece, int, int, int, int]:
+    candidates = []
+    for transformed, r, f in unique_transforms(piece):
+        w, h = bounding_box(transformed)
+        candidates.append((w * h, max(w, h), h, w, transformed, r, f))
+    _, _, h, w, transformed, r, f = min(candidates)
+    return transformed, r, f, w, h
 
 
-def solve(width: int, height: int, blocked: frozenset[Cell]) -> list[Domino]:
-    # Baseline exact solver via bipartite maximum matching.
-    import networkx as nx
+def try_pack(items: list[tuple[int, Piece, int, int, int, int]], width_limit: int) -> tuple[int, int, list[Placement]]:
+    x = 0
+    y = 0
+    shelf_h = 0
+    placements_by_index: dict[int, Placement] = {}
 
-    free = [
-        (x, y)
-        for y in range(height)
-        for x in range(width)
-        if (x, y) not in blocked
-    ]
-    left = [c for c in free if (c[0] + c[1]) % 2 == 0]
+    for idx, piece, r, f, w, h in items:
+        if x + w > width_limit and x > 0:
+            y += shelf_h
+            x = 0
+            shelf_h = 0
+        placements_by_index[idx] = (x, y, r, f)
+        x += w
+        shelf_h = max(shelf_h, h)
+    height = y + shelf_h
+    placements = [placements_by_index[i] for i in range(len(items))]
+    return width_limit, height, placements
 
-    graph = nx.Graph()
-    graph.add_nodes_from(left, bipartite=0)
-    graph.add_nodes_from([c for c in free if c not in left], bipartite=1)
 
-    for cell in left:
-        for nxt in _neighbors(width, height, blocked, cell):
-            if (nxt[0] + nxt[1]) % 2 == 1:
-                graph.add_edge(cell, nxt)
+def solve(pieces: tuple[Piece, ...]) -> tuple[int, int, list[Placement]]:
+    oriented = [(idx, *best_orientation(piece)) for idx, piece in enumerate(pieces)]
+    oriented.sort(key=lambda item: (item[4] * item[5], item[5], item[4], len(item[1])), reverse=True)
 
-    matching = nx.algorithms.bipartite.matching.maximum_matching(graph, top_nodes=set(left))
-    packing: list[Domino] = []
-    used = set()
-    for a in left:
-        b = matching.get(a)
-        if b is None or a in used or b in used:
-            continue
-        packing.append((a, b))
-        used.add(a)
-        used.add(b)
-    return packing
+    total_bbox_area = sum(w * h for _, _, _, _, w, h in oriented)
+    total_cells = sum(len(piece) for _, piece, _, _, _, _ in oriented)
+    start_width = max(max(w for _, _, _, _, w, _ in oriented), int(math.sqrt(max(total_cells, total_bbox_area // 2))))
+
+    best = None
+    for width in range(start_width, start_width + 16):
+        packed = try_pack(oriented, width)
+        W, H, placements = packed
+        area = W * H
+        if best is None or (area, H, W) < (best[0] * best[1], best[1], best[0]):
+            best = packed
+    assert best is not None
+    return best
 
 
 if __name__ == "__main__":
     result = evaluate_solver(solve)
     print("---")
-    print(f"score:            {result['score']}")
-    print(f"solved_optimal:   {result['solved_optimal']}")
+    print(f"score:            {result['score']:.6f}")
+    print(f"valid_cases:      {result['valid_cases']}")
     print(f"runtime_seconds:  {result['runtime_seconds']:.4f}")
-    print(f"budget_seconds:   {result['budget_seconds']:.2f}")
     print(f"status:           {result['status']}")

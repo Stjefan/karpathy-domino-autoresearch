@@ -1,99 +1,79 @@
-# autoresearch-domino-karpathy
+# karpathy-domino-autoresearch
 
-This is an algorithmic adaptation of the autoresearch loop.
+This is a Karpathy-style autoresearch loop for **Frontier-CS Algorithmic Problem 0**:
+packing many small polyominoes into a small rectangle.
 
 ## Setup
 
-To set up a new experiment, work with the user to:
-
-1. **Agree on a run tag**: propose a tag based on today's date. The branch `autoresearch/<tag>` must not already exist.
-2. **Create the branch**: `git checkout -b autoresearch/<tag>` from current master.
-3. **Read the in-scope files**:
+1. Choose a run tag like `mar21-p0`.
+2. Create a branch: `git checkout -b autoresearch/<tag>`.
+3. Read:
    - `README.md`
-   - `prepare.py` — fixed benchmark harness, do not modify
-   - `train.py` — the file you modify
-4. **Verify setup**: run `uv run prepare.py` once if needed.
-5. **Initialize results.tsv**: create it with only the header row.
-6. **Confirm and go**.
+   - `prepare.py` (fixed harness, do not modify)
+   - `train.py` (the only file you modify)
+4. Run the baseline once: `uv run train.py > run.log 2>&1`
+5. Initialize `results.tsv` with the header row.
+6. Record the baseline.
 
-## Experimentation
+## What you CAN do
 
-Each experiment runs with a fixed benchmark suite and fixed wall-clock budget.
-You launch it as:
-
-```bash
-uv run train.py
-```
-
-**What you CAN do:**
 - Modify `train.py` only.
-- Change solver logic, heuristics, search ordering, pruning, decomposition, data structures, and internal strategy.
+- Change piece ordering, orientation selection, placement heuristics, local search, search width selection, and internal data structures.
 
-**What you CANNOT do:**
+## What you CANNOT do
+
 - Modify `prepare.py`.
-- Install new packages or add dependencies.
-- Modify the benchmark suite or scoring logic.
+- Add dependencies.
+- Change validation or scoring.
 
 ## Goal
 
-The goal is to maximize `score` reported by the harness.
-Tie-breakers:
-1. more `solved_optimal`
-2. lower runtime
+Maximize `score`.
 
-## First run
-
-The very first run should always establish the baseline.
-Run the training script as-is before making changes.
+Practically, that means reducing the rectangle area used by the packer while preserving validity.
 
 ## Output format
 
-When the script finishes it prints a summary like this:
+The script prints a summary like:
 
 ```text
 ---
-score:            412
-solved_optimal:   12/12
-runtime_seconds:  0.14
-budget_seconds:   5.00
+score:            48372.182318
+valid_cases:      12/12
+runtime_seconds:  0.0213
 status:           success
 ```
 
-## Logging results
+## Logging
 
-When an experiment is done, log it to `results.tsv` (tab-separated).
-
-Header:
+Log each experiment to `results.tsv` as tab-separated values:
 
 ```text
-commit	score	solved_optimal	runtime_seconds	status	description
+commit	score	valid_cases	runtime_seconds	status	description
 ```
 
-Example:
-
-```text
-commit	score	solved_optimal	runtime_seconds	status	description
-a1b2c3d	412	12/12	0.14	keep	baseline exact matcher
-b2c3d4e	412	12/12	0.09	keep	component splitting
-c3d4e5f	404	10/12	0.04	discard	too-greedy heuristic
-```
-
-## Experiment loop
+## Loop
 
 LOOP FOREVER:
 
-1. Look at current branch/commit.
-2. Edit `train.py` with one experimental idea.
-3. git commit.
-4. Run `uv run train.py > run.log 2>&1`.
-5. Extract results from `run.log`.
-6. If the run crashes, inspect the traceback and decide whether to fix or discard.
-7. Record the result in `results.tsv` (leave it untracked).
-8. If the score improved, keep the commit.
-9. If the score is worse, or tie-breakers are worse, reset back.
+1. inspect current branch/commit
+2. make one focused change to `train.py`
+3. commit it
+4. run `uv run train.py > run.log 2>&1`
+5. extract the reported metrics
+6. if it crashes, inspect the traceback and either fix or discard
+7. append to `results.tsv` (untracked)
+8. keep the commit only if score improves materially, or ties while simplifying code / reducing runtime
+9. otherwise reset back
 
-**Timeout**: if a run exceeds 10 minutes, kill it and treat it as failure.
+## First ideas worth trying
 
-**Simplicity criterion**: all else equal, simpler is better.
+- sort pieces by harder-to-place geometry
+- search multiple candidate widths
+- skyline placement instead of plain shelves
+- bounded local repacking around bad shelves
+- maintain occupancy bitsets for faster feasibility tests
 
-**Never stop** once the loop begins, unless manually interrupted by the human.
+## Never stop
+
+Once the experiment loop begins, continue until manually interrupted.
