@@ -1,0 +1,18 @@
+[project]
+name = "autoresearch-domino-karpathy"
+version = "0.1.0"
+description = "Algorithmic autoresearch adaptation for domino packing"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "networkx>=3.5",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+]
+
+[build-system]
+requires = ["uv_build>=0.8.13,<0.9.0"]
+build-backend = "uv_build"
