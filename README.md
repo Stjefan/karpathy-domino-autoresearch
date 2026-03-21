@@ -67,8 +67,11 @@ The repo now includes:
 
 - `program.md` — the Karpathy-style research loop
 - `AGENTS.md` — repo-specific working rules
+- `EXPERIMENT_PROTOCOL.md` — explicit harness/agent experiment procedure
+- `STATUS.md` — current baseline, blockers, and next ideas
 - `results.tsv` — baseline experiment ledger on the research branch
 - `run_autoresearch.sh` — helper to execute and log runs
+- `scripts/eval_official.sh` — placeholder hook for the official Frontier-CS judge
 - `use_official_frontier_stack.md` — notes for switching to the real Frontier-CS Docker judge
 
 ## Baseline

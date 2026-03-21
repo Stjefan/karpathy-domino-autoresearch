@@ -7,8 +7,11 @@ Repo purpose: run Karpathy-style autoresearch for Frontier-CS Algorithmic Proble
 - `prepare.py` — fixed local harness, do not modify during a research run
 - `train.py` — the single mutable file for packing strategy experiments
 - `program.md` — human/agent loop instructions
+- `EXPERIMENT_PROTOCOL.md` — exact agent/harness workflow
+- `STATUS.md` — current baseline and next likely improvements
 - `results.tsv` — untracked experiment ledger
 - `run_autoresearch.sh` — small helper to run and log baseline/manual experiments
+- `scripts/eval_official.sh` — bridge placeholder for official judge evaluation
 
 ## Rules
 
