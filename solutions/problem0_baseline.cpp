@@ -12,7 +12,7 @@ static vector<Cell> normalize(vector<Cell> pts) {
     return pts;
 }
 
-static vector<Cell> transform_piece(const vector<Cell>& cells, int r, int f) {
+static vector<Cell> transform_piece_raw(const vector<Cell>& cells, int r, int f) {
     vector<Cell> out;
     out.reserve(cells.size());
     for (auto c : cells) {
@@ -27,11 +27,12 @@ static vector<Cell> transform_piece(const vector<Cell>& cells, int r, int f) {
         }
         out.push_back({nx, ny});
     }
-    return normalize(out);
+    return out;
 }
 
 struct Choice {
     int idx, r, f, w, h, box_area, cells;
+    int minx, miny;
     vector<Cell> shape;
 };
 
@@ -64,18 +65,26 @@ int main() {
         set<vector<pair<int,int>>> seen;
         for (int f = 0; f <= 1; ++f) {
             for (int r = 0; r < 4; ++r) {
-                auto t = transform_piece(pieces[i].cells, r, f);
+                auto raw = transform_piece_raw(pieces[i].cells, r, f);
+                int minx = INT_MAX, miny = INT_MAX, maxx = INT_MIN, maxy = INT_MIN;
+                for (auto &c : raw) {
+                    minx = min(minx, c.x);
+                    miny = min(miny, c.y);
+                    maxx = max(maxx, c.x);
+                    maxy = max(maxy, c.y);
+                }
+                auto t = normalize(raw);
                 vector<pair<int,int>> sig;
                 for (auto &c : t) sig.push_back({c.x, c.y});
                 if (!seen.insert(sig).second) continue;
 
-                int w = 0, h = 0;
-                for (auto &c : t) { w = max(w, c.x + 1); h = max(h, c.y + 1); }
+                int w = maxx - minx + 1;
+                int h = maxy - miny + 1;
                 int area = w * h;
                 if (area < best.box_area ||
                     (area == best.box_area && max(w, h) < max(best.w, best.h)) ||
                     (area == best.box_area && max(w, h) == max(best.w, best.h) && h < best.h)) {
-                    best = {i, r, f, w, h, area, (int)t.size(), t};
+                    best = {i, r, f, w, h, area, (int)t.size(), minx, miny, t};
                 }
             }
         }
@@ -105,7 +114,7 @@ int main() {
                 x = 0;
                 shelf_h = 0;
             }
-            ans[c.idx] = {x, y, c.r, c.f};
+            ans[c.idx] = {x - c.minx, y - c.miny, c.r, c.f};
             x += c.w;
             shelf_h = max(shelf_h, c.h);
         }
