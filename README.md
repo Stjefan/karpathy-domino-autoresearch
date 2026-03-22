@@ -71,7 +71,8 @@ The repo now includes:
 - `STATUS.md` — current baseline, blockers, and next ideas
 - `results.tsv` — baseline experiment ledger on the research branch
 - `run_autoresearch.sh` — helper to execute and log runs
-- `scripts/eval_official.sh` — placeholder hook for the official Frontier-CS judge
+- `scripts/eval_official.sh` — real hook for the official Frontier-CS judge
+- `solutions/problem0_baseline.cpp` — first judged C++ baseline submission
 - `use_official_frontier_stack.md` — notes for switching to the real Frontier-CS Docker judge
 
 ## Baseline

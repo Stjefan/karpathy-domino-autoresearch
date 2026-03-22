@@ -38,6 +38,9 @@ That means it wastes space badly on awkward polyomino mixes.
 ## Official evaluation status
 
 - Frontier-CS repo cloned in workspace at `../Frontier-CS`
-- official algorithmic stack identified
-- blocked on Docker installation for local official judge
-- temporary local harness is active until Docker exists
+- official Docker judge is now running locally
+- `http://localhost:8081/problems` responds
+- end-to-end `frontier eval algorithmic 0 ...` has been verified
+- next step is to improve judged C++ submissions, not just the local Python scaffold
+- current official baseline submission: `solutions/problem0_baseline.cpp`
+- current official judged score: `0.00`

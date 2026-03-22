@@ -1,0 +1,128 @@
+#include <bits/stdc++.h>
+using namespace std;
+
+struct Cell { int x, y; };
+struct Piece { vector<Cell> cells; };
+
+static vector<Cell> normalize(vector<Cell> pts) {
+    int minx = INT_MAX, miny = INT_MAX;
+    for (auto &c : pts) { minx = min(minx, c.x); miny = min(miny, c.y); }
+    for (auto &c : pts) { c.x -= minx; c.y -= miny; }
+    sort(pts.begin(), pts.end(), [](const Cell& a, const Cell& b){ return a.x == b.x ? a.y < b.y : a.x < b.x; });
+    return pts;
+}
+
+static vector<Cell> transform_piece(const vector<Cell>& cells, int r, int f) {
+    vector<Cell> out;
+    out.reserve(cells.size());
+    for (auto c : cells) {
+        int x = c.x, y = c.y;
+        if (f) x = -x;
+        int nx, ny;
+        switch (r & 3) {
+            case 0: nx = x; ny = y; break;
+            case 1: nx = y; ny = -x; break;
+            case 2: nx = -x; ny = -y; break;
+            default: nx = -y; ny = x; break;
+        }
+        out.push_back({nx, ny});
+    }
+    return normalize(out);
+}
+
+struct Choice {
+    int idx, r, f, w, h, box_area, cells;
+    vector<Cell> shape;
+};
+
+int main() {
+    ios::sync_with_stdio(false);
+    cin.tie(nullptr);
+
+    int n;
+    if (!(cin >> n)) return 0;
+    vector<Piece> pieces(n);
+    long long total_cells = 0;
+    for (int i = 0; i < n; ++i) {
+        int k; cin >> k;
+        pieces[i].cells.resize(k);
+        total_cells += k;
+        for (int j = 0; j < k; ++j) cin >> pieces[i].cells[j].x >> pieces[i].cells[j].y;
+    }
+
+    vector<Choice> choices;
+    choices.reserve(n);
+    int min_width = 1;
+
+    for (int i = 0; i < n; ++i) {
+        Choice best{};
+        best.idx = i;
+        best.box_area = INT_MAX;
+        best.w = best.h = INT_MAX;
+        best.cells = (int)pieces[i].cells.size();
+
+        set<vector<pair<int,int>>> seen;
+        for (int f = 0; f <= 1; ++f) {
+            for (int r = 0; r < 4; ++r) {
+                auto t = transform_piece(pieces[i].cells, r, f);
+                vector<pair<int,int>> sig;
+                for (auto &c : t) sig.push_back({c.x, c.y});
+                if (!seen.insert(sig).second) continue;
+
+                int w = 0, h = 0;
+                for (auto &c : t) { w = max(w, c.x + 1); h = max(h, c.y + 1); }
+                int area = w * h;
+                if (area < best.box_area ||
+                    (area == best.box_area && max(w, h) < max(best.w, best.h)) ||
+                    (area == best.box_area && max(w, h) == max(best.w, best.h) && h < best.h)) {
+                    best = {i, r, f, w, h, area, (int)t.size(), t};
+                }
+            }
+        }
+        min_width = max(min_width, best.w);
+        choices.push_back(best);
+    }
+
+    sort(choices.begin(), choices.end(), [](const Choice& a, const Choice& b) {
+        if (a.box_area != b.box_area) return a.box_area > b.box_area;
+        if (a.h != b.h) return a.h > b.h;
+        if (a.w != b.w) return a.w > b.w;
+        return a.cells > b.cells;
+    });
+
+    int start_width = max<int>(min_width, sqrt((double)max<long long>(1, total_cells)));
+    long long best_area = (1LL << 62);
+    int best_w = start_width, best_h = (int)total_cells;
+    vector<array<int,4>> best_ans(n);
+
+    for (int W = start_width; W <= start_width + 32; ++W) {
+        int x = 0, y = 0, shelf_h = 0;
+        vector<array<int,4>> ans(n);
+
+        for (const auto& c : choices) {
+            if (x > 0 && x + c.w > W) {
+                y += shelf_h;
+                x = 0;
+                shelf_h = 0;
+            }
+            ans[c.idx] = {x, y, c.r, c.f};
+            x += c.w;
+            shelf_h = max(shelf_h, c.h);
+        }
+
+        int H = y + shelf_h;
+        long long area = 1LL * W * H;
+        if (area < best_area || (area == best_area && H < best_h) || (area == best_area && H == best_h && W < best_w)) {
+            best_area = area;
+            best_w = W;
+            best_h = H;
+            best_ans = ans;
+        }
+    }
+
+    cout << best_w << ' ' << best_h << '\n';
+    for (int i = 0; i < n; ++i) {
+        cout << best_ans[i][0] << ' ' << best_ans[i][1] << ' ' << best_ans[i][2] << ' ' << best_ans[i][3] << '\n';
+    }
+    return 0;
+}
