@@ -105,21 +105,50 @@ int main() {
     vector<array<int,4>> best_ans(n);
 
     for (int W = start_width; W <= start_width + 32; ++W) {
-        int x = 0, y = 0, shelf_h = 0;
         vector<array<int,4>> ans(n);
+        vector<vector<unsigned char>> occ;
+        vector<int> col_height(W, 0);
+
+        auto ensure_rows = [&](int need_rows) {
+            while ((int)occ.size() < need_rows) occ.emplace_back(W, 0);
+        };
+
+        auto can_place = [&](const Choice& c, int px, int py) {
+            if (px < 0 || px + c.w > W || py < 0) return false;
+            ensure_rows(py + c.h);
+            for (const auto& cell : c.shape) {
+                if (occ[py + cell.y][px + cell.x]) return false;
+            }
+            return true;
+        };
+
+        auto place = [&](const Choice& c, int px, int py) {
+            ensure_rows(py + c.h);
+            for (const auto& cell : c.shape) {
+                occ[py + cell.y][px + cell.x] = 1;
+                col_height[px + cell.x] = max(col_height[px + cell.x], py + cell.y + 1);
+            }
+        };
 
         for (const auto& c : choices) {
-            if (x > 0 && x + c.w > W) {
-                y += shelf_h;
-                x = 0;
-                shelf_h = 0;
+            int best_x = -1, best_y = INT_MAX;
+            for (int x = 0; x + c.w <= W; ++x) {
+                int y = 0;
+                for (const auto& cell : c.shape) {
+                    y = max(y, col_height[x + cell.x] - cell.y);
+                }
+                while (!can_place(c, x, y)) ++y;
+                if (y < best_y || (y == best_y && x < best_x)) {
+                    best_x = x;
+                    best_y = y;
+                }
             }
-            ans[c.idx] = {x - c.minx, y - c.miny, c.r, c.f};
-            x += c.w;
-            shelf_h = max(shelf_h, c.h);
+            place(c, best_x, best_y);
+            ans[c.idx] = {best_x - c.minx, best_y - c.miny, c.r, c.f};
         }
 
-        int H = y + shelf_h;
+        int H = 0;
+        for (int h : col_height) H = max(H, h);
         long long area = 1LL * W * H;
         if (area < best_area || (area == best_area && H < best_h) || (area == best_area && H == best_h && W < best_w)) {
             best_area = area;
