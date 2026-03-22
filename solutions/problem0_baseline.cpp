@@ -83,7 +83,7 @@ int main() {
                 int area = w * h;
                 if (area < best.box_area ||
                     (area == best.box_area && max(w, h) < max(best.w, best.h)) ||
-                    (area == best.box_area && max(w, h) == max(best.w, best.h) && h < best.h)) {
+                    (area == best.box_area && max(w, h) == max(best.w, best.h) && w > best.w)) {
                     best = {i, r, f, w, h, area, (int)t.size(), minx, miny, t};
                 }
             }
