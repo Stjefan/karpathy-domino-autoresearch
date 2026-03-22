@@ -150,11 +150,12 @@ int main() {
 
         for (const auto& c : choices) {
             int best_x = -1, best_y = INT_MAX;
+            int best_contact = -1; // tiebreaker: maximize contact with floor/walls/placed pieces
             int best_r = c.r, best_f = c.f, best_w2 = c.w, best_h2 = c.h;
             int best_mx = c.minx, best_my = c.miny;
             const vector<Cell>* best_shape = &c.shape;
 
-            // Try all same-h orientations (safe: same h, won't create taller bumps)
+            // Try all same-h orientations, pick min y then max contact as tiebreaker
             for (const auto& [or_, of_, ow, oh, omx, omy, oshape] : c.same_h_orients) {
                 if (ow > W) continue;
                 for (int x = 0; x + ow <= W; ++x) {
@@ -164,8 +165,22 @@ int main() {
                     }
                     if (y < 0) y = 0;
                     while (!can_place_shape(oshape, ow, oh, x, y)) ++y;
-                    if (y < best_y || (y == best_y && x < best_x)) {
-                        best_x = x; best_y = y;
+                    if (y > best_y) continue;
+                    // Compute contact score: cells adjacent to floor, boundaries, or placed cells
+                    int contact = 0;
+                    ensure_rows(y + oh);
+                    for (const auto& cell : oshape) {
+                        int cx = x + cell.x, cy = y + cell.y;
+                        if (cy == 0) contact++;  // floor
+                        if (cx == 0) contact++;  // left wall
+                        if (cx == W - 1) contact++;  // right wall
+                        if (cy > 0 && occ[cy-1][cx]) contact++;  // below neighbor
+                        if (cx > 0 && occ[cy][cx-1]) contact++;  // left neighbor
+                        if (cx + 1 < W && occ[cy][cx+1]) contact++;  // right neighbor
+                    }
+                    if (y < best_y || (y == best_y && contact > best_contact) ||
+                        (y == best_y && contact == best_contact && x < best_x)) {
+                        best_x = x; best_y = y; best_contact = contact;
                         best_r = or_; best_f = of_;
                         best_w2 = ow; best_h2 = oh;
                         best_mx = omx; best_my = omy;
