@@ -93,8 +93,8 @@ int main() {
     }
 
     sort(choices.begin(), choices.end(), [](const Choice& a, const Choice& b) {
-        if (a.box_area != b.box_area) return a.box_area > b.box_area;
         if (a.h != b.h) return a.h > b.h;
+        if (a.box_area != b.box_area) return a.box_area > b.box_area;
         if (a.w != b.w) return a.w > b.w;
         return a.cells > b.cells;
     });
