@@ -34,6 +34,8 @@ struct Choice {
     int idx, r, f, w, h, box_area, cells;
     int minx, miny;
     vector<Cell> shape;
+    // all unique orientations with same h as compact (safe for multi-orient at placement)
+    vector<tuple<int,int,int,int,int,int,vector<Cell>>> same_h_orients; // r,f,w,h,minx,miny,shape
 };
 
 int main() {
@@ -63,6 +65,10 @@ int main() {
         best.cells = (int)pieces[i].cells.size();
 
         set<vector<pair<int,int>>> seen;
+        // Store all unique orientations for later filtering
+        struct OrientData { int r, f, w, h, area, minx, miny; vector<Cell> shape; };
+        vector<OrientData> all_orients;
+
         for (int f = 0; f <= 1; ++f) {
             for (int r = 0; r < 4; ++r) {
                 auto raw = transform_piece_raw(pieces[i].cells, r, f);
@@ -81,6 +87,8 @@ int main() {
                 int w = maxx - minx + 1;
                 int h = maxy - miny + 1;
                 int area = w * h;
+                all_orients.push_back({r, f, w, h, area, minx, miny, t});
+
                 if (area < best.box_area ||
                     (area == best.box_area && max(w, h) < max(best.w, best.h)) ||
                     (area == best.box_area && max(w, h) == max(best.w, best.h) && w > best.w)) {
@@ -89,6 +97,16 @@ int main() {
             }
         }
         min_width = max(min_width, best.w);
+
+        // Collect all unique orientations that have the SAME h as the compact orientation.
+        // These are safe to try at placement time: they can't create taller bumps than expected.
+        // (Only applies when multiple orientations share the same height.)
+        for (auto& od : all_orients) {
+            if (od.h == best.h) {
+                best.same_h_orients.emplace_back(od.r, od.f, od.w, od.h, od.minx, od.miny, od.shape);
+            }
+        }
+
         choices.push_back(best);
     }
 
@@ -113,18 +131,18 @@ int main() {
             while ((int)occ.size() < need_rows) occ.emplace_back(W, 0);
         };
 
-        auto can_place = [&](const Choice& c, int px, int py) {
-            if (px < 0 || px + c.w > W || py < 0) return false;
-            ensure_rows(py + c.h);
-            for (const auto& cell : c.shape) {
+        auto can_place_shape = [&](const vector<Cell>& shape, int pw, int ph, int px, int py) {
+            if (px < 0 || px + pw > W || py < 0) return false;
+            ensure_rows(py + ph);
+            for (const auto& cell : shape) {
                 if (occ[py + cell.y][px + cell.x]) return false;
             }
             return true;
         };
 
-        auto place = [&](const Choice& c, int px, int py) {
-            ensure_rows(py + c.h);
-            for (const auto& cell : c.shape) {
+        auto place_shape = [&](const vector<Cell>& shape, int pw, int ph, int px, int py) {
+            ensure_rows(py + ph);
+            for (const auto& cell : shape) {
                 occ[py + cell.y][px + cell.x] = 1;
                 col_height[px + cell.x] = max(col_height[px + cell.x], py + cell.y + 1);
             }
@@ -132,19 +150,32 @@ int main() {
 
         for (const auto& c : choices) {
             int best_x = -1, best_y = INT_MAX;
-            for (int x = 0; x + c.w <= W; ++x) {
-                int y = 0;
-                for (const auto& cell : c.shape) {
-                    y = max(y, col_height[x + cell.x] - cell.y);
-                }
-                while (!can_place(c, x, y)) ++y;
-                if (y < best_y || (y == best_y && x < best_x)) {
-                    best_x = x;
-                    best_y = y;
+            int best_r = c.r, best_f = c.f, best_w2 = c.w, best_h2 = c.h;
+            int best_mx = c.minx, best_my = c.miny;
+            const vector<Cell>* best_shape = &c.shape;
+
+            // Try all same-h orientations (safe: same h, won't create taller bumps)
+            for (const auto& [or_, of_, ow, oh, omx, omy, oshape] : c.same_h_orients) {
+                if (ow > W) continue;
+                for (int x = 0; x + ow <= W; ++x) {
+                    int y = 0;
+                    for (const auto& cell : oshape) {
+                        y = max(y, col_height[x + cell.x] - cell.y);
+                    }
+                    if (y < 0) y = 0;
+                    while (!can_place_shape(oshape, ow, oh, x, y)) ++y;
+                    if (y < best_y || (y == best_y && x < best_x)) {
+                        best_x = x; best_y = y;
+                        best_r = or_; best_f = of_;
+                        best_w2 = ow; best_h2 = oh;
+                        best_mx = omx; best_my = omy;
+                        best_shape = &oshape;
+                    }
                 }
             }
-            place(c, best_x, best_y);
-            ans[c.idx] = {best_x - c.minx, best_y - c.miny, c.r, c.f};
+
+            place_shape(*best_shape, best_w2, best_h2, best_x, best_y);
+            ans[c.idx] = {best_x - best_mx, best_y - best_my, best_r, best_f};
         }
 
         int H = 0;
